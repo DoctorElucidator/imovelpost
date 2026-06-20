@@ -24,6 +24,8 @@ export * from './generatePostRequestFocus';
 export * from './generatePostRequestPlatform';
 export * from './generatePostRequestTone';
 export * from './healthStatus';
+export * from './importedListing';
+export * from './importListingRequest';
 export * from './insightsSummary';
 export * from './listPostsParams';
 export * from './listPostsStatus';

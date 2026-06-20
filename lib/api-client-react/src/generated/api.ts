@@ -29,6 +29,8 @@ import type {
   GeneratePostRequest,
   GeneratedPostResult,
   HealthStatus,
+  ImportListingRequest,
+  ImportedListing,
   InsightsSummary,
   ListPostsParams,
   Post,
@@ -1463,6 +1465,77 @@ export const useUpdateCampaign = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUpdateCampaignMutationOptions(options));
+    }
+
+export const getImportListingUrl = () => {
+
+
+
+
+  return `/api/import/listing`
+}
+
+/**
+ * @summary Scrape a real estate listing URL and extract property data and photos
+ */
+export const importListing = async (importListingRequest: ImportListingRequest, options?: RequestInit): Promise<ImportedListing> => {
+
+  return customFetch<ImportedListing>(getImportListingUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      importListingRequest,)
+  }
+);}
+
+
+
+
+export const getImportListingMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importListing>>, TError,{data: BodyType<ImportListingRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importListing>>, TError,{data: BodyType<ImportListingRequest>}, TContext> => {
+
+const mutationKey = ['importListing'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importListing>>, {data: BodyType<ImportListingRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  importListing(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportListingMutationResult = NonNullable<Awaited<ReturnType<typeof importListing>>>
+    export type ImportListingMutationBody = BodyType<ImportListingRequest>
+    export type ImportListingMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Scrape a real estate listing URL and extract property data and photos
+ */
+export const useImportListing = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importListing>>, TError,{data: BodyType<ImportListingRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importListing>>,
+        TError,
+        {data: BodyType<ImportListingRequest>},
+        TContext
+      > => {
+      return useMutation(getImportListingMutationOptions(options));
     }
 
 export const getRequestUploadUrlUrl = () => {

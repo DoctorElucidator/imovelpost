@@ -7,6 +7,7 @@ import analysisRouter from "./analysis";
 import campaignsRouter from "./campaigns";
 import dashboardRouter from "./dashboard";
 import storageRouter from "./storage";
+import importRouter from "./import";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(analysisRouter);
 router.use(campaignsRouter);
 router.use(dashboardRouter);
 router.use(storageRouter);
+router.use(importRouter);
 
 export default router;

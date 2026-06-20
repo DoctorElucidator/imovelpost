@@ -400,6 +400,37 @@ paths:
               schema:
                 $ref: "#/components/schemas/Campaign"
 
+  /import/listing:
+    post:
+      operationId: importListing
+      tags: [generate]
+      summary: Scrape a real estate listing URL and extract property data and photos
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportListingRequest"
+      responses:
+        "200":
+          description: Extracted listing data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportedListing"
+        "400":
+          description: Invalid URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Could not extract data from this URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /storage/uploads/request-url:
     post:
       tags: [Storage]
@@ -706,6 +737,47 @@ components:
           type: string
         publishedAt:
           type: string
+
+    ImportListingRequest:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          description: Public URL of a real estate listing (VivaReal, ZAP, OLX, Órulo, etc.)
+
+    ImportedListing:
+      type: object
+      required: [photos, source]
+      properties:
+        title:
+          type: ["string", "null"]
+        price:
+          type: ["number", "null"]
+        description:
+          type: ["string", "null"]
+        address:
+          type: ["string", "null"]
+        neighborhood:
+          type: ["string", "null"]
+        city:
+          type: ["string", "null"]
+        area:
+          type: ["number", "null"]
+        bedrooms:
+          type: ["integer", "null"]
+        bathrooms:
+          type: ["integer", "null"]
+        parkingSpots:
+          type: ["integer", "null"]
+        photos:
+          type: array
+          items:
+            type: string
+          description: Public photo URLs extracted from the listing
+        source:
+          type: string
+          description: Which portal the data came from (e.g. VivaReal, ZAP, OLX)
 
     UploadUrlRequest:
       type: object

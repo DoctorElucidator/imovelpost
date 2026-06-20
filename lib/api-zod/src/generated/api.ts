@@ -420,6 +420,29 @@ export const UpdateCampaignResponse = zod.object({
 
 
 /**
+ * @summary Scrape a real estate listing URL and extract property data and photos
+ */
+export const ImportListingBody = zod.object({
+  "url": zod.string().describe('Public URL of a real estate listing (VivaReal, ZAP, OLX, Órulo, etc.)')
+})
+
+export const ImportListingResponse = zod.object({
+  "title": zod.string().nullish(),
+  "price": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "neighborhood": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "area": zod.number().nullish(),
+  "bedrooms": zod.number().nullish(),
+  "bathrooms": zod.number().nullish(),
+  "parkingSpots": zod.number().nullish(),
+  "photos": zod.array(zod.string()).describe('Public photo URLs extracted from the listing'),
+  "source": zod.string().describe('Which portal the data came from (e.g. VivaReal, ZAP, OLX)')
+})
+
+
+/**
  * @summary Request a presigned URL for file upload
  */
 export const RequestUploadUrlBody = zod.object({

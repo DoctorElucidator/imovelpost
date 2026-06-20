@@ -5,6 +5,8 @@ import {
   getListPropertiesQueryKey,
   useGeneratePost,
   useCreatePost,
+  useImportListing,
+  type ImportedListing,
   GeneratePostRequestPlatform,
   GeneratePostRequestTone,
   GeneratePostRequestFocus,
@@ -20,7 +22,8 @@ import { useToast } from "@/hooks/use-toast";
 import { 
   Wand2, Copy, Save, Edit2, AlertCircle, 
   ImagePlus, X, ChevronDown, ChevronUp,
-  MapPin, Maximize2, BadgeDollarSign, Loader2
+  MapPin, Maximize2, BadgeDollarSign, Loader2,
+  Link2, Download, CheckSquare, Square, ExternalLink
 } from "lucide-react";
 import { translatePlatform } from "@/lib/utils";
 
@@ -53,10 +56,16 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-interface UploadedPhoto {
-  objectPath: string;
+interface Photo {
+  type: "uploaded" | "imported";
+  url: string;
   previewUrl: string;
   name: string;
+}
+
+function formatBRL(value: number | null | undefined): string {
+  if (!value) return "";
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 }
 
 export default function Generate() {
@@ -66,9 +75,15 @@ export default function Generate() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
+  const [photos, setPhotos] = useState<Photo[]>([]);
   const [showContextFields, setShowContextFields] = useState(false);
-  const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Import from portal state
+  const [showImport, setShowImport] = useState(false);
+  const [importUrl, setImportUrl] = useState("");
+  const [importedListing, setImportedListing] = useState<ImportedListing | null>(null);
+  const [selectedImportPhotos, setSelectedImportPhotos] = useState<Set<string>>(new Set());
 
   const { data: properties, isLoading: isPropertiesLoading } = useListProperties({
     query: { queryKey: getListPropertiesQueryKey() }
@@ -76,8 +91,9 @@ export default function Generate() {
 
   const generateMutation = useGeneratePost();
   const createMutation = useCreatePost();
+  const importMutation = useImportListing();
 
-  const { uploadFile, isUploading } = useUpload({
+  const { uploadFile } = useUpload({
     onError: () => {
       toast({ title: "Erro no upload", description: "Falha ao enviar foto.", variant: "destructive" });
     }
@@ -116,37 +132,107 @@ export default function Generate() {
     const remaining = 5 - photos.length;
     const toUpload = files.slice(0, remaining);
 
-    for (let i = 0; i < toUpload.length; i++) {
-      const file = toUpload[i];
+    setIsUploading(true);
+    for (const file of toUpload) {
       if (!file.type.startsWith("image/")) continue;
-
-      setUploadingIndex(i);
       const previewUrl = URL.createObjectURL(file);
       const result = await uploadFile(file);
-      
       if (result) {
         setPhotos(prev => [...prev, {
-          objectPath: result.objectPath,
+          type: "uploaded",
+          url: `/api/storage${result.objectPath}`,
           previewUrl,
           name: file.name,
         }]);
       }
     }
-    setUploadingIndex(null);
+    setIsUploading(false);
     e.target.value = "";
   }, [photos.length, uploadFile]);
 
   const removePhoto = useCallback((index: number) => {
     setPhotos(prev => {
       const next = [...prev];
-      URL.revokeObjectURL(next[index].previewUrl);
+      if (next[index].type === "uploaded") URL.revokeObjectURL(next[index].previewUrl);
       next.splice(index, 1);
       return next;
     });
   }, []);
 
+  const handleImport = () => {
+    if (!importUrl.trim()) return;
+    importMutation.mutate({ data: { url: importUrl.trim() } }, {
+      onSuccess: (listing) => {
+        setImportedListing(listing);
+        setSelectedImportPhotos(new Set(listing.photos.slice(0, 5)));
+        toast({ title: `Importado do ${listing.source}`, description: `${listing.photos.length} fotos encontradas.` });
+      },
+      onError: (err: unknown) => {
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "Erro ao importar listagem.";
+        toast({ title: "Erro ao importar", description: msg, variant: "destructive" });
+      }
+    });
+  };
+
+  const toggleImportPhoto = (url: string) => {
+    setSelectedImportPhotos(prev => {
+      const next = new Set(prev);
+      if (next.has(url)) next.delete(url);
+      else if (next.size < 5) next.add(url);
+      return next;
+    });
+  };
+
+  const applyImportedPhotos = () => {
+    const available = 5 - photos.filter(p => p.type === "uploaded").length;
+    const toAdd = [...selectedImportPhotos]
+      .filter(url => !photos.some(p => p.url === url))
+      .slice(0, available);
+
+    if (toAdd.length === 0) {
+      toast({ title: "Nenhuma foto adicionada", description: "Todas as fotos selecionadas já foram adicionadas." });
+      return;
+    }
+
+    setPhotos(prev => [
+      ...prev.filter(p => p.type === "uploaded"),
+      ...toAdd.map((url, i) => ({
+        type: "imported" as const,
+        url,
+        previewUrl: url,
+        name: `foto-importada-${i + 1}`,
+      }))
+    ]);
+
+    toast({ title: `${toAdd.length} foto${toAdd.length > 1 ? "s" : ""} adicionada${toAdd.length > 1 ? "s" : ""}`, description: "Fotos do portal prontas para uso." });
+  };
+
+  const applyImportedContext = (listing: ImportedListing) => {
+    if (listing.neighborhood || listing.city) {
+      const parts: string[] = [];
+      if (listing.neighborhood) parts.push(`Bairro: ${listing.neighborhood}`);
+      if (listing.city) parts.push(`Cidade: ${listing.city}`);
+      form.setValue("regionContext", parts.join(". "));
+    }
+
+    const sizeParts: string[] = [];
+    if (listing.area) sizeParts.push(`Área: ${listing.area}m²`);
+    if (listing.bedrooms) sizeParts.push(`${listing.bedrooms} quarto${listing.bedrooms > 1 ? "s" : ""}`);
+    if (listing.bathrooms) sizeParts.push(`${listing.bathrooms} banheiro${listing.bathrooms > 1 ? "s" : ""}`);
+    if (listing.parkingSpots) sizeParts.push(`${listing.parkingSpots} vaga${listing.parkingSpots > 1 ? "s" : ""}`);
+    if (sizeParts.length) form.setValue("sizeContext", sizeParts.join(", "));
+
+    if (listing.price) {
+      form.setValue("valueContext", `Valor: ${formatBRL(listing.price)}`);
+    }
+
+    if (!showContextFields) setShowContextFields(true);
+
+    toast({ title: "Dados aplicados", description: "As informações do anúncio foram preenchidas nos campos de contexto." });
+  };
+
   const onGenerate = (data: FormValues) => {
-    const imageUrls = photos.map(p => `/api/storage${p.objectPath}`);
+    const imageUrls = photos.map(p => p.url);
     
     generateMutation.mutate({ 
       data: {
@@ -158,10 +244,7 @@ export default function Generate() {
       }
     }, {
       onSuccess: (res) => {
-        setGeneratedResult({
-          ...res,
-          propertyId: data.propertyId
-        });
+        setGeneratedResult({ ...res, propertyId: data.propertyId });
         setEditedContent(res.content);
         toast({ title: "Post Gerado", description: "O post foi gerado com sucesso." });
       },
@@ -173,7 +256,6 @@ export default function Generate() {
 
   const onSave = (status: PostInputStatus) => {
     if (!generatedResult) return;
-    
     createMutation.mutate({
       data: {
         title: generatedResult.title,
@@ -200,6 +282,8 @@ export default function Generate() {
     form.watch("regionContext") || form.watch("sizeContext") || form.watch("valueContext")
   );
 
+  const totalPhotos = photos.length;
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div>
@@ -208,8 +292,181 @@ export default function Generate() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Formulário de Configuração */}
+        {/* Formulário */}
         <div className="space-y-4">
+          {/* Importar de portal */}
+          <div className="bg-card border border-card-border rounded-xl shadow-sm overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowImport(v => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-muted/50 transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <Link2 className="w-4 h-4 text-primary" />
+                Importar fotos de portal imobiliário
+                {importedListing && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-semibold">
+                    {importedListing.source}
+                  </span>
+                )}
+              </span>
+              {showImport ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+            </button>
+
+            {showImport && (
+              <div className="border-t border-border px-4 py-4 space-y-4">
+                <p className="text-xs text-muted-foreground">
+                  Cole a URL de um anúncio do VivaReal, ZAP Imóveis, OLX, Órulo ou outro portal para importar as fotos e dados do imóvel.
+                </p>
+
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={importUrl}
+                    onChange={e => setImportUrl(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && handleImport()}
+                    placeholder="https://www.vivareal.com.br/imovel/..."
+                    className="flex-1 h-9 px-3 rounded-md border border-input bg-transparent text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleImport}
+                    disabled={importMutation.isPending || !importUrl.trim()}
+                    className="h-9 px-4 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-50 shrink-0"
+                  >
+                    {importMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Download className="w-4 h-4" />
+                    )}
+                    {importMutation.isPending ? "Importando..." : "Importar"}
+                  </button>
+                </div>
+
+                {importedListing && (
+                  <div className="space-y-3">
+                    {/* Dados extraídos */}
+                    <div className="bg-muted/30 rounded-lg p-3 space-y-1.5">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                          Dados extraídos — {importedListing.source}
+                        </p>
+                        <a
+                          href={importUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary flex items-center gap-1 hover:underline"
+                        >
+                          Ver anúncio <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                      {importedListing.title && (
+                        <p className="text-sm font-medium text-foreground line-clamp-2">{importedListing.title}</p>
+                      )}
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        {importedListing.price !== null && importedListing.price !== undefined && (
+                          <span className="font-semibold text-foreground">{formatBRL(importedListing.price)}</span>
+                        )}
+                        {importedListing.area && <span>{importedListing.area}m²</span>}
+                        {importedListing.bedrooms && <span>{importedListing.bedrooms} qto{importedListing.bedrooms > 1 ? "s" : ""}</span>}
+                        {importedListing.bathrooms && <span>{importedListing.bathrooms} ban{importedListing.bathrooms > 1 ? "hs" : "h"}</span>}
+                        {importedListing.parkingSpots && <span>{importedListing.parkingSpots} vaga{importedListing.parkingSpots > 1 ? "s" : ""}</span>}
+                        {importedListing.neighborhood && <span>{importedListing.neighborhood}</span>}
+                        {importedListing.city && <span>{importedListing.city}</span>}
+                      </div>
+                    </div>
+
+                    {/* Fotos */}
+                    {importedListing.photos.length > 0 ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-medium text-muted-foreground">
+                            {importedListing.photos.length} foto{importedListing.photos.length > 1 ? "s" : ""} encontrada{importedListing.photos.length > 1 ? "s" : ""} — selecione as que quer usar
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (selectedImportPhotos.size === importedListing.photos.length) {
+                                setSelectedImportPhotos(new Set());
+                              } else {
+                                setSelectedImportPhotos(new Set(importedListing.photos.slice(0, 5)));
+                              }
+                            }}
+                            className="text-xs text-primary hover:underline"
+                          >
+                            {selectedImportPhotos.size === importedListing.photos.length ? "Desmarcar todas" : "Selecionar todas (até 5)"}
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-4 gap-2 max-h-52 overflow-y-auto pr-1">
+                          {importedListing.photos.map((url, i) => {
+                            const selected = selectedImportPhotos.has(url);
+                            const alreadyAdded = photos.some(p => p.url === url);
+                            return (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => !alreadyAdded && toggleImportPhoto(url)}
+                                disabled={alreadyAdded}
+                                className={`relative aspect-square rounded-md overflow-hidden border-2 transition-all ${
+                                  alreadyAdded 
+                                    ? "border-chart-3 opacity-60 cursor-default" 
+                                    : selected 
+                                      ? "border-primary" 
+                                      : "border-transparent hover:border-primary/40"
+                                }`}
+                              >
+                                <img
+                                  src={url}
+                                  alt={`Foto ${i + 1}`}
+                                  className="w-full h-full object-cover"
+                                  onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                                />
+                                <div className={`absolute top-1 right-1 ${alreadyAdded ? "text-chart-3" : selected ? "text-primary" : "text-white/70"}`}>
+                                  {alreadyAdded ? (
+                                    <CheckSquare className="w-4 h-4 drop-shadow" />
+                                  ) : selected ? (
+                                    <CheckSquare className="w-4 h-4 drop-shadow" />
+                                  ) : (
+                                    <Square className="w-4 h-4 drop-shadow" />
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={applyImportedPhotos}
+                            disabled={selectedImportPhotos.size === 0 || totalPhotos >= 5}
+                            className="flex-1 h-8 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                          >
+                            <ImagePlus className="w-3.5 h-3.5" />
+                            Usar {selectedImportPhotos.size > 0 ? `${selectedImportPhotos.size} ` : ""}foto{selectedImportPhotos.size !== 1 ? "s" : ""} selecionada{selectedImportPhotos.size !== 1 ? "s" : ""}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyImportedContext(importedListing)}
+                            className="flex-1 h-8 rounded-md text-xs font-medium border border-input bg-card hover:bg-muted transition-colors flex items-center justify-center gap-1.5"
+                          >
+                            <MapPin className="w-3.5 h-3.5 text-primary" />
+                            Preencher contexto
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-muted-foreground text-center py-3 bg-muted/20 rounded-md">
+                        Nenhuma foto encontrada nesta pagina. Tente outro portal ou adicione fotos manualmente.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Formulário principal */}
           <div className="bg-card border border-card-border rounded-xl p-6 shadow-sm">
             <form onSubmit={form.handleSubmit(onGenerate)} className="space-y-5">
               {/* Imóvel */}
@@ -233,15 +490,27 @@ export default function Generate() {
               {/* Fotos */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium">Fotos do Imóvel</label>
-                  <span className="text-xs text-muted-foreground">{photos.length}/5 fotos</span>
+                  <label className="text-sm font-medium">Fotos para a IA analisar</label>
+                  <span className="text-xs text-muted-foreground">{totalPhotos}/5 fotos</span>
                 </div>
 
                 {photos.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-2">
                     {photos.map((photo, idx) => (
                       <div key={idx} className="relative w-16 h-16 rounded-md overflow-hidden border border-border group">
-                        <img src={photo.previewUrl} alt={photo.name} className="w-full h-full object-cover" />
+                        <img 
+                          src={photo.previewUrl} 
+                          alt={photo.name} 
+                          className="w-full h-full object-cover"
+                          onError={e => {
+                            (e.target as HTMLImageElement).src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Crect width='64' height='64' fill='%23f0f0f0'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' font-size='10' fill='%23999'%3EFoto%3C/text%3E%3C/svg%3E";
+                          }}
+                        />
+                        {photo.type === "imported" && (
+                          <div className="absolute bottom-0.5 left-0.5">
+                            <ExternalLink className="w-2.5 h-2.5 text-white drop-shadow" />
+                          </div>
+                        )}
                         <button
                           type="button"
                           onClick={() => removePhoto(idx)}
@@ -259,10 +528,10 @@ export default function Generate() {
                   </div>
                 )}
 
-                {photos.length < 5 && (
+                {totalPhotos < 5 && (
                   <label className={`flex items-center gap-2 px-3 py-2.5 rounded-md border border-dashed border-input hover:border-primary/50 hover:bg-primary/5 cursor-pointer transition-colors text-sm text-muted-foreground ${isUploading ? "opacity-50 pointer-events-none" : ""}`}>
                     <ImagePlus className="w-4 h-4 text-primary" />
-                    {photos.length === 0 ? "Adicionar fotos (opcional)" : "Adicionar mais fotos"}
+                    {photos.length === 0 ? "Adicionar fotos do dispositivo" : "Adicionar mais fotos"}
                     <input
                       type="file"
                       accept="image/*"
@@ -275,7 +544,8 @@ export default function Generate() {
                 )}
                 {photos.length > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    A IA usará as fotos para descrever o imóvel com mais precisão no post.
+                    A IA analisará as fotos para descrever o imóvel com mais precisão.
+                    {photos.some(p => p.type === "imported") && " Fotos com o icone de link foram importadas do portal."}
                   </p>
                 )}
               </div>
@@ -332,7 +602,7 @@ export default function Generate() {
                 </div>
               </div>
 
-              {/* Contexto adicional (expandível) */}
+              {/* Contexto adicional */}
               <div className="border border-dashed border-input rounded-lg overflow-hidden">
                 <button
                   type="button"
@@ -407,7 +677,7 @@ export default function Generate() {
                 ) : (
                   <>
                     <Wand2 className="w-5 h-5" />
-                    Gerar Post{photos.length > 0 ? ` com ${photos.length} foto${photos.length > 1 ? "s" : ""}` : ""}
+                    Gerar Post{totalPhotos > 0 ? ` com ${totalPhotos} foto${totalPhotos > 1 ? "s" : ""}` : ""}
                   </>
                 )}
               </button>
@@ -502,7 +772,7 @@ export default function Generate() {
                 </div>
                 <h3 className="text-lg font-medium text-foreground">Pronto para gerar</h3>
                 <p className="text-muted-foreground mt-2 max-w-sm text-sm">
-                  Preencha o formulário ao lado, adicione fotos e contexto extras para um post ainda mais preciso.
+                  Importe fotos de um portal, adicione fotos do dispositivo e preencha o contexto para um post mais preciso.
                 </p>
               </div>
             </div>

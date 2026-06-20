@@ -269,6 +269,38 @@ export interface PostUpdate {
   publishedAt?: string;
 }
 
+export interface ImportListingRequest {
+  /** Public URL of a real estate listing (VivaReal, ZAP, OLX, Órulo, etc.) */
+  url: string;
+}
+
+export interface ImportedListing {
+  /** @nullable */
+  title?: string | null;
+  /** @nullable */
+  price?: number | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  neighborhood?: string | null;
+  /** @nullable */
+  city?: string | null;
+  /** @nullable */
+  area?: number | null;
+  /** @nullable */
+  bedrooms?: number | null;
+  /** @nullable */
+  bathrooms?: number | null;
+  /** @nullable */
+  parkingSpots?: number | null;
+  /** Public photo URLs extracted from the listing */
+  photos: string[];
+  /** Which portal the data came from (e.g. VivaReal, ZAP, OLX) */
+  source: string;
+}
+
 export interface UploadUrlRequest {
   name: string;
   size: number;
