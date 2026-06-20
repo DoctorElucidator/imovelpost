@@ -3,13 +3,24 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: ImóvelPost API - Brazilian real estate social media post generator
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: properties
+    description: Property listings management
+  - name: posts
+    description: Generated social media posts
+  - name: analysis
+    description: Social media analysis and insights
+  - name: campaigns
+    description: Post campaign management
+  - name: generate
+    description: AI post generation
+
 paths:
   /healthz:
     get:
@@ -24,6 +35,382 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /properties:
+    get:
+      operationId: listProperties
+      tags: [properties]
+      summary: List all properties
+      responses:
+        "200":
+          description: List of properties
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Property"
+    post:
+      operationId: createProperty
+      tags: [properties]
+      summary: Create a property listing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PropertyInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+
+  /properties/{id}:
+    get:
+      operationId: getProperty
+      tags: [properties]
+      summary: Get a property by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Property details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateProperty
+      tags: [properties]
+      summary: Update a property
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PropertyUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteProperty
+      tags: [properties]
+      summary: Delete a property
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /posts:
+    get:
+      operationId: listPosts
+      tags: [posts]
+      summary: List all generated posts
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [draft, approved, published, archived]
+        - name: propertyId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of posts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Post"
+    post:
+      operationId: createPost
+      tags: [posts]
+      summary: Save a post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+
+  /posts/{id}:
+    get:
+      operationId: getPost
+      tags: [posts]
+      summary: Get a post by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Post details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updatePost
+      tags: [posts]
+      summary: Update a post (approve, edit, etc.)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deletePost
+      tags: [posts]
+      summary: Delete a post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /generate:
+    post:
+      operationId: generatePost
+      tags: [generate]
+      summary: Generate an AI-optimized post for a property
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GeneratePostRequest"
+      responses:
+        "200":
+          description: Generated post content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedPostResult"
+
+  /analysis/insights:
+    get:
+      operationId: getInsights
+      tags: [analysis]
+      summary: Get aggregated performance insights for Brazilian real estate posts
+      responses:
+        "200":
+          description: Insights and patterns
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InsightsSummary"
+
+  /analysis/trends:
+    get:
+      operationId: getTrends
+      tags: [analysis]
+      summary: Get trending post patterns and high-performing structures
+      responses:
+        "200":
+          description: Trending patterns
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TrendPattern"
+
+  /analysis/run:
+    post:
+      operationId: runAnalysis
+      tags: [analysis]
+      summary: Trigger a fresh AI analysis of Brazilian real estate social media patterns
+      responses:
+        "200":
+          description: Analysis results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisRun"
+
+  /campaigns:
+    get:
+      operationId: listCampaigns
+      tags: [campaigns]
+      summary: List all campaigns
+      responses:
+        "200":
+          description: List of campaigns
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Campaign"
+    post:
+      operationId: createCampaign
+      tags: [campaigns]
+      summary: Create a new posting campaign
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CampaignInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+
+  /campaigns/{id}:
+    get:
+      operationId: getCampaign
+      tags: [campaigns]
+      summary: Get a campaign by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Campaign details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateCampaign
+      tags: [campaigns]
+      summary: Update a campaign
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CampaignUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [analysis]
+      summary: Get dashboard summary stats
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +421,436 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    Property:
+      type: object
+      required: [id, title, type, price, city, state, area, bedrooms, bathrooms, program, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        type:
+          type: string
+          enum: [apartment, house, studio, commercial, land]
+        price:
+          type: number
+        city:
+          type: string
+        state:
+          type: string
+        neighborhood:
+          type: ["string", "null"]
+        area:
+          type: number
+        bedrooms:
+          type: integer
+        bathrooms:
+          type: integer
+        parkingSpots:
+          type: integer
+        program:
+          type: string
+          enum: [minha_casa_minha_vida, regular, mcmv_faixa1, mcmv_faixa2, mcmv_faixa3]
+        amenities:
+          type: array
+          items:
+            type: string
+        imageUrls:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [available, sold, reserved]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    PropertyInput:
+      type: object
+      required: [title, type, price, city, state, area, bedrooms, bathrooms, program]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+          enum: [apartment, house, studio, commercial, land]
+        price:
+          type: number
+        city:
+          type: string
+        state:
+          type: string
+        neighborhood:
+          type: string
+        area:
+          type: number
+        bedrooms:
+          type: integer
+        bathrooms:
+          type: integer
+        parkingSpots:
+          type: integer
+        program:
+          type: string
+          enum: [minha_casa_minha_vida, regular, mcmv_faixa1, mcmv_faixa2, mcmv_faixa3]
+        amenities:
+          type: array
+          items:
+            type: string
+        imageUrls:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [available, sold, reserved]
+
+    PropertyUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+          enum: [apartment, house, studio, commercial, land]
+        price:
+          type: number
+        city:
+          type: string
+        state:
+          type: string
+        neighborhood:
+          type: string
+        area:
+          type: number
+        bedrooms:
+          type: integer
+        bathrooms:
+          type: integer
+        parkingSpots:
+          type: integer
+        program:
+          type: string
+          enum: [minha_casa_minha_vida, regular, mcmv_faixa1, mcmv_faixa2, mcmv_faixa3]
+        amenities:
+          type: array
+          items:
+            type: string
+        imageUrls:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [available, sold, reserved]
+
+    Post:
+      type: object
+      required: [id, title, content, platform, status, propertyId, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        hashtags:
+          type: array
+          items:
+            type: string
+        platform:
+          type: string
+          enum: [facebook, facebook_marketplace, instagram, whatsapp]
+        status:
+          type: string
+          enum: [draft, approved, published, archived]
+        propertyId:
+          type: integer
+        score:
+          type: ["number", "null"]
+        aiNotes:
+          type: ["string", "null"]
+        scheduledAt:
+          type: ["string", "null"]
+        publishedAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    PostInput:
+      type: object
+      required: [title, content, platform, propertyId]
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        hashtags:
+          type: array
+          items:
+            type: string
+        platform:
+          type: string
+          enum: [facebook, facebook_marketplace, instagram, whatsapp]
+        status:
+          type: string
+          enum: [draft, approved, published, archived]
+        propertyId:
+          type: integer
+        score:
+          type: number
+        aiNotes:
+          type: string
+        scheduledAt:
+          type: string
+
+    PostUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        hashtags:
+          type: array
+          items:
+            type: string
+        platform:
+          type: string
+          enum: [facebook, facebook_marketplace, instagram, whatsapp]
+        status:
+          type: string
+          enum: [draft, approved, published, archived]
+        score:
+          type: number
+        aiNotes:
+          type: string
+        scheduledAt:
+          type: string
+        publishedAt:
+          type: string
+
+    GeneratePostRequest:
+      type: object
+      required: [propertyId, platform]
+      properties:
+        propertyId:
+          type: integer
+        platform:
+          type: string
+          enum: [facebook, facebook_marketplace, instagram, whatsapp]
+        tone:
+          type: string
+          enum: [professional, friendly, urgent, emotional]
+        focus:
+          type: string
+          enum: [price, location, program, amenities, lifestyle]
+        customInstructions:
+          type: string
+
+    GeneratedPostResult:
+      type: object
+      required: [title, content, hashtags, platform, score, aiNotes]
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        hashtags:
+          type: array
+          items:
+            type: string
+        platform:
+          type: string
+        score:
+          type: number
+        aiNotes:
+          type: string
+
+    InsightsSummary:
+      type: object
+      required: [totalPostsAnalyzed, avgEngagementScore, topPrograms, topCities, lastAnalyzedAt]
+      properties:
+        totalPostsAnalyzed:
+          type: integer
+        avgEngagementScore:
+          type: number
+        topPrograms:
+          type: array
+          items:
+            type: string
+        topCities:
+          type: array
+          items:
+            type: string
+        bestPerformingTone:
+          type: string
+        bestPerformingPlatform:
+          type: string
+        lastAnalyzedAt:
+          type: string
+        keyFindings:
+          type: array
+          items:
+            type: string
+
+    TrendPattern:
+      type: object
+      required: [id, title, description, score, platform, tags, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        score:
+          type: number
+        platform:
+          type: string
+        exampleText:
+          type: ["string", "null"]
+        tags:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+
+    AnalysisRun:
+      type: object
+      required: [id, status, patternsFound, startedAt]
+      properties:
+        id:
+          type: integer
+        status:
+          type: string
+          enum: [running, completed, failed]
+        patternsFound:
+          type: integer
+        findings:
+          type: array
+          items:
+            type: string
+        startedAt:
+          type: string
+        completedAt:
+          type: ["string", "null"]
+
+    Campaign:
+      type: object
+      required: [id, name, status, platform, postsCount, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, paused, completed, draft]
+        platform:
+          type: string
+          enum: [facebook, facebook_marketplace, instagram, whatsapp, all]
+        postsCount:
+          type: integer
+        targetCity:
+          type: ["string", "null"]
+        targetProgram:
+          type: ["string", "null"]
+        startDate:
+          type: ["string", "null"]
+        endDate:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    CampaignInput:
+      type: object
+      required: [name, platform]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        platform:
+          type: string
+          enum: [facebook, facebook_marketplace, instagram, whatsapp, all]
+        targetCity:
+          type: string
+        targetProgram:
+          type: string
+        startDate:
+          type: string
+        endDate:
+          type: string
+
+    CampaignUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [active, paused, completed, draft]
+        platform:
+          type: string
+          enum: [facebook, facebook_marketplace, instagram, whatsapp, all]
+        targetCity:
+          type: string
+        targetProgram:
+          type: string
+        startDate:
+          type: string
+        endDate:
+          type: string
+
+    DashboardStats:
+      type: object
+      required: [totalProperties, totalPosts, draftPosts, publishedPosts, totalCampaigns, activeCampaigns, avgPostScore, topProgram, topPlatform]
+      properties:
+        totalProperties:
+          type: integer
+        totalPosts:
+          type: integer
+        draftPosts:
+          type: integer
+        publishedPosts:
+          type: integer
+        totalCampaigns:
+          type: integer
+        activeCampaigns:
+          type: integer
+        avgPostScore:
+          type: number
+        topProgram:
+          type: string
+        topPlatform:
+          type: string
+        recentActivity:
+          type: array
+          items:
+            type: string
