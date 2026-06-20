@@ -49,3 +49,5 @@ export * from './propertyUpdateProgram';
 export * from './propertyUpdateStatus';
 export * from './propertyUpdateType';
 export * from './trendPattern';
+export * from './uploadUrlRequest';
+export * from './uploadUrlResponse';

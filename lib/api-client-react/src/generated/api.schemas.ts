@@ -269,6 +269,17 @@ export interface PostUpdate {
   publishedAt?: string;
 }
 
+export interface UploadUrlRequest {
+  name: string;
+  size: number;
+  contentType: string;
+}
+
+export interface UploadUrlResponse {
+  uploadURL: string;
+  objectPath: string;
+}
+
 export type GeneratePostRequestPlatform = typeof GeneratePostRequestPlatform[keyof typeof GeneratePostRequestPlatform];
 
 
@@ -306,6 +317,14 @@ export interface GeneratePostRequest {
   tone?: GeneratePostRequestTone;
   focus?: GeneratePostRequestFocus;
   customInstructions?: string;
+  /** URLs of property photos to include in AI analysis */
+  imageUrls?: string[];
+  /** Optional: neighborhood highlights, nearby amenities, public transport */
+  regionContext?: string;
+  /** Optional: size/layout highlights the broker wants to emphasize */
+  sizeContext?: string;
+  /** Optional: financing terms, value deal details, entry conditions */
+  valueContext?: string;
 }
 
 export interface GeneratedPostResult {

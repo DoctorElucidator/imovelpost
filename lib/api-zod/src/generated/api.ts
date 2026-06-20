@@ -267,7 +267,11 @@ export const GeneratePostBody = zod.object({
   "platform": zod.enum(['facebook', 'facebook_marketplace', 'instagram', 'whatsapp']),
   "tone": zod.enum(['professional', 'friendly', 'urgent', 'emotional']).optional(),
   "focus": zod.enum(['price', 'location', 'program', 'amenities', 'lifestyle']).optional(),
-  "customInstructions": zod.string().optional()
+  "customInstructions": zod.string().optional(),
+  "imageUrls": zod.array(zod.string()).optional().describe('URLs of property photos to include in AI analysis'),
+  "regionContext": zod.string().optional().describe('Optional: neighborhood highlights, nearby amenities, public transport'),
+  "sizeContext": zod.string().optional().describe('Optional: size\/layout highlights the broker wants to emphasize'),
+  "valueContext": zod.string().optional().describe('Optional: financing terms, value deal details, entry conditions')
 })
 
 export const GeneratePostResponse = zod.object({
@@ -412,6 +416,29 @@ export const UpdateCampaignResponse = zod.object({
   "endDate": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Request a presigned URL for file upload
+ */
+export const RequestUploadUrlBody = zod.object({
+  "name": zod.string(),
+  "size": zod.number(),
+  "contentType": zod.string()
+})
+
+export const RequestUploadUrlResponse = zod.object({
+  "uploadURL": zod.string(),
+  "objectPath": zod.string()
+})
+
+
+/**
+ * @summary Serve an uploaded object
+ */
+export const GetStorageObjectParams = zod.object({
+  "objectPath": zod.coerce.string()
 })
 
 

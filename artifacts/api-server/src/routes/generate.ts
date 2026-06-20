@@ -13,7 +13,7 @@ router.post("/generate", async (req, res): Promise<void> => {
     return;
   }
 
-  const { propertyId, platform, tone, focus, customInstructions } = parsed.data;
+  const { propertyId, platform, tone, focus, customInstructions, imageUrls, regionContext, sizeContext, valueContext } = parsed.data;
 
   const [property] = await db.select().from(propertiesTable).where(eq(propertiesTable.id, propertyId));
   if (!property) {
@@ -27,7 +27,13 @@ router.post("/generate", async (req, res): Promise<void> => {
       platform as PostPlatform,
       (tone ?? "friendly") as PostTone,
       (focus ?? "program") as PostFocus,
-      customInstructions ?? undefined
+      {
+        customInstructions: customInstructions ?? undefined,
+        imageUrls: imageUrls ?? [],
+        regionContext: regionContext ?? undefined,
+        sizeContext: sizeContext ?? undefined,
+        valueContext: valueContext ?? undefined,
+      }
     );
     res.json({ ...result, platform });
   } catch (err) {

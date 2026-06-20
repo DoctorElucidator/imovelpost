@@ -13,6 +13,14 @@ export type PostPlatform = "facebook" | "facebook_marketplace" | "instagram" | "
 export type PostTone = "professional" | "friendly" | "urgent" | "emotional";
 export type PostFocus = "price" | "location" | "program" | "amenities" | "lifestyle";
 
+export interface GenerateOptions {
+  customInstructions?: string;
+  imageUrls?: string[];
+  regionContext?: string;
+  sizeContext?: string;
+  valueContext?: string;
+}
+
 function platformLabel(p: PostPlatform): string {
   const map: Record<PostPlatform, string> = {
     facebook: "Facebook (post de feed)",
@@ -76,7 +84,7 @@ export async function generateRealEstatePost(
   platform: PostPlatform,
   tone: PostTone = "friendly",
   focus: PostFocus = "program",
-  customInstructions?: string
+  options: GenerateOptions = {}
 ): Promise<{
   title: string;
   content: string;
@@ -84,6 +92,8 @@ export async function generateRealEstatePost(
   score: number;
   aiNotes: string;
 }> {
+  const { customInstructions, imageUrls = [], regionContext, sizeContext, valueContext } = options;
+
   const priceFormatted = new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
@@ -99,8 +109,12 @@ Suas respostas devem:
 - Incluir call-to-action claro
 - Nunca alucinar dados — use apenas o que foi fornecido
 - Não usar emojis no texto principal (apenas se for natural para a plataforma)
+- Incorporar contexto visual das fotos quando disponível
 
 Responda APENAS com JSON válido no formato especificado.`;
+
+  const hasPhotos = imageUrls.length > 0;
+  const hasExtraContext = regionContext || sizeContext || valueContext;
 
   const userPrompt = `Crie um post para venda do seguinte imóvel:
 
@@ -120,7 +134,15 @@ ${property.description ? `- Descrição adicional: ${property.description}` : ""
 - Plataforma: ${platformLabel(platform)}
 - Tom: ${toneLabel(tone)}
 - Foco principal: ${focusLabel(focus)}
-${customInstructions ? `- Instruções adicionais: ${customInstructions}` : ""}
+${customInstructions ? `- Instruções do corretor: ${customInstructions}` : ""}
+
+${hasPhotos ? `**Fotos do Imóvel:**
+O corretor anexou ${imageUrls.length} foto(s) do imóvel. Use o contexto visual para tornar o post mais específico e convincente — descreva características visíveis como acabamento, espaço, luminosidade, vista ou estado de conservação quando relevante.` : ""}
+
+${hasExtraContext ? `**Contexto Adicional do Corretor:**` : ""}
+${regionContext ? `- Sobre a região/bairro: ${regionContext}` : ""}
+${sizeContext ? `- Sobre o espaço/tamanho: ${sizeContext}` : ""}
+${valueContext ? `- Sobre o valor/condições: ${valueContext}` : ""}
 
 **Retorne EXATAMENTE este JSON:**
 {

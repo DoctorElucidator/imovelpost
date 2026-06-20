@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import { 
   useListProperties, 
@@ -11,23 +11,53 @@ import {
   PostInputPlatform,
   PostInputStatus
 } from "@workspace/api-client-react";
+import { useUpload } from "@workspace/object-storage-web";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { Wand2, Copy, Save, Edit2, AlertCircle } from "lucide-react";
+import { 
+  Wand2, Copy, Save, Edit2, AlertCircle, 
+  ImagePlus, X, ChevronDown, ChevronUp,
+  MapPin, Maximize2, BadgeDollarSign, Loader2
+} from "lucide-react";
 import { translatePlatform } from "@/lib/utils";
 
 const formSchema = z.object({
   propertyId: z.coerce.number().min(1, "Selecione um imóvel"),
-  platform: z.enum([GeneratePostRequestPlatform.facebook, GeneratePostRequestPlatform.facebook_marketplace, GeneratePostRequestPlatform.instagram, GeneratePostRequestPlatform.whatsapp]),
-  tone: z.enum([GeneratePostRequestTone.professional, GeneratePostRequestTone.friendly, GeneratePostRequestTone.urgent, GeneratePostRequestTone.emotional]).optional(),
-  focus: z.enum([GeneratePostRequestFocus.price, GeneratePostRequestFocus.location, GeneratePostRequestFocus.program, GeneratePostRequestFocus.amenities, GeneratePostRequestFocus.lifestyle]).optional(),
+  platform: z.enum([
+    GeneratePostRequestPlatform.facebook,
+    GeneratePostRequestPlatform.facebook_marketplace,
+    GeneratePostRequestPlatform.instagram,
+    GeneratePostRequestPlatform.whatsapp
+  ]),
+  tone: z.enum([
+    GeneratePostRequestTone.professional,
+    GeneratePostRequestTone.friendly,
+    GeneratePostRequestTone.urgent,
+    GeneratePostRequestTone.emotional
+  ]).optional(),
+  focus: z.enum([
+    GeneratePostRequestFocus.price,
+    GeneratePostRequestFocus.location,
+    GeneratePostRequestFocus.program,
+    GeneratePostRequestFocus.amenities,
+    GeneratePostRequestFocus.lifestyle
+  ]).optional(),
   customInstructions: z.string().optional(),
+  regionContext: z.string().optional(),
+  sizeContext: z.string().optional(),
+  valueContext: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
+
+interface UploadedPhoto {
+  objectPath: string;
+  previewUrl: string;
+  name: string;
+}
 
 export default function Generate() {
   const [searchParams] = useState(new URLSearchParams(window.location.search));
@@ -36,12 +66,22 @@ export default function Generate() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
+  const [showContextFields, setShowContextFields] = useState(false);
+  const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
+
   const { data: properties, isLoading: isPropertiesLoading } = useListProperties({
     query: { queryKey: getListPropertiesQueryKey() }
   });
 
   const generateMutation = useGeneratePost();
   const createMutation = useCreatePost();
+
+  const { uploadFile, isUploading } = useUpload({
+    onError: () => {
+      toast({ title: "Erro no upload", description: "Falha ao enviar foto.", variant: "destructive" });
+    }
+  });
 
   const [generatedResult, setGeneratedResult] = useState<{
     title: string;
@@ -63,11 +103,60 @@ export default function Generate() {
       tone: GeneratePostRequestTone.professional,
       focus: GeneratePostRequestFocus.program,
       customInstructions: "",
+      regionContext: "",
+      sizeContext: "",
+      valueContext: "",
     }
   });
 
+  const handlePhotoSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+
+    const remaining = 5 - photos.length;
+    const toUpload = files.slice(0, remaining);
+
+    for (let i = 0; i < toUpload.length; i++) {
+      const file = toUpload[i];
+      if (!file.type.startsWith("image/")) continue;
+
+      setUploadingIndex(i);
+      const previewUrl = URL.createObjectURL(file);
+      const result = await uploadFile(file);
+      
+      if (result) {
+        setPhotos(prev => [...prev, {
+          objectPath: result.objectPath,
+          previewUrl,
+          name: file.name,
+        }]);
+      }
+    }
+    setUploadingIndex(null);
+    e.target.value = "";
+  }, [photos.length, uploadFile]);
+
+  const removePhoto = useCallback((index: number) => {
+    setPhotos(prev => {
+      const next = [...prev];
+      URL.revokeObjectURL(next[index].previewUrl);
+      next.splice(index, 1);
+      return next;
+    });
+  }, []);
+
   const onGenerate = (data: FormValues) => {
-    generateMutation.mutate({ data }, {
+    const imageUrls = photos.map(p => `/api/storage${p.objectPath}`);
+    
+    generateMutation.mutate({ 
+      data: {
+        ...data,
+        imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+        regionContext: data.regionContext || undefined,
+        sizeContext: data.sizeContext || undefined,
+        valueContext: data.valueContext || undefined,
+      }
+    }, {
       onSuccess: (res) => {
         setGeneratedResult({
           ...res,
@@ -107,6 +196,10 @@ export default function Generate() {
     });
   };
 
+  const hasContextFilled = showContextFields && (
+    form.watch("regionContext") || form.watch("sizeContext") || form.watch("valueContext")
+  );
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div>
@@ -116,101 +209,216 @@ export default function Generate() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Formulário de Configuração */}
-        <div className="bg-card border border-card-border rounded-xl p-6 shadow-sm h-fit">
-          <form onSubmit={form.handleSubmit(onGenerate)} className="space-y-6">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Imóvel</label>
-              <select 
-                {...form.register("propertyId")}
-                className="w-full h-10 px-3 rounded-md border border-input bg-transparent text-sm"
-                disabled={isPropertiesLoading}
-              >
-                <option value={0}>Selecione um imóvel</option>
-                {properties?.map(p => (
-                  <option key={p.id} value={p.id}>{p.title}</option>
-                ))}
-              </select>
-              {form.formState.errors.propertyId && <p className="text-sm text-destructive">{form.formState.errors.propertyId.message}</p>}
-            </div>
+        <div className="space-y-4">
+          <div className="bg-card border border-card-border rounded-xl p-6 shadow-sm">
+            <form onSubmit={form.handleSubmit(onGenerate)} className="space-y-5">
+              {/* Imóvel */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Imóvel</label>
+                <select 
+                  {...form.register("propertyId")}
+                  className="w-full h-10 px-3 rounded-md border border-input bg-transparent text-sm"
+                  disabled={isPropertiesLoading}
+                >
+                  <option value={0}>Selecione um imóvel</option>
+                  {properties?.map(p => (
+                    <option key={p.id} value={p.id}>{p.title}</option>
+                  ))}
+                </select>
+                {form.formState.errors.propertyId && (
+                  <p className="text-sm text-destructive">{form.formState.errors.propertyId.message}</p>
+                )}
+              </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Plataforma</label>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { id: GeneratePostRequestPlatform.instagram, label: "Instagram" },
-                  { id: GeneratePostRequestPlatform.facebook, label: "Facebook" },
-                  { id: GeneratePostRequestPlatform.facebook_marketplace, label: "FB Marketplace" },
-                  { id: GeneratePostRequestPlatform.whatsapp, label: "WhatsApp" },
-                ].map(platform => (
-                  <label key={platform.id} className="relative flex items-center justify-center p-3 border border-input rounded-md cursor-pointer hover:bg-muted transition-colors has-[:checked]:bg-primary/5 has-[:checked]:border-primary">
-                    <input 
-                      type="radio" 
-                      value={platform.id} 
-                      {...form.register("platform")}
-                      className="absolute opacity-0"
+              {/* Fotos */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">Fotos do Imóvel</label>
+                  <span className="text-xs text-muted-foreground">{photos.length}/5 fotos</span>
+                </div>
+
+                {photos.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {photos.map((photo, idx) => (
+                      <div key={idx} className="relative w-16 h-16 rounded-md overflow-hidden border border-border group">
+                        <img src={photo.previewUrl} alt={photo.name} className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => removePhoto(idx)}
+                          className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                        >
+                          <X className="w-4 h-4 text-white" />
+                        </button>
+                      </div>
+                    ))}
+                    {isUploading && (
+                      <div className="w-16 h-16 rounded-md border border-dashed border-primary/40 flex items-center justify-center bg-primary/5">
+                        <Loader2 className="w-5 h-5 text-primary animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {photos.length < 5 && (
+                  <label className={`flex items-center gap-2 px-3 py-2.5 rounded-md border border-dashed border-input hover:border-primary/50 hover:bg-primary/5 cursor-pointer transition-colors text-sm text-muted-foreground ${isUploading ? "opacity-50 pointer-events-none" : ""}`}>
+                    <ImagePlus className="w-4 h-4 text-primary" />
+                    {photos.length === 0 ? "Adicionar fotos (opcional)" : "Adicionar mais fotos"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={handlePhotoSelect}
+                      disabled={isUploading}
                     />
-                    <span className="text-sm font-medium">{platform.label}</span>
                   </label>
-                ))}
+                )}
+                {photos.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    A IA usará as fotos para descrever o imóvel com mais precisão no post.
+                  </p>
+                )}
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
+              {/* Plataforma */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Tom de Voz</label>
-                <select 
-                  {...form.register("tone")}
-                  className="w-full h-10 px-3 rounded-md border border-input bg-transparent text-sm"
-                >
-                  <option value="professional">Profissional</option>
-                  <option value="friendly">Amigável</option>
-                  <option value="urgent">Urgente (Escassez)</option>
-                  <option value="emotional">Emocional</option>
-                </select>
+                <label className="text-sm font-medium">Plataforma</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: GeneratePostRequestPlatform.instagram, label: "Instagram" },
+                    { id: GeneratePostRequestPlatform.facebook, label: "Facebook" },
+                    { id: GeneratePostRequestPlatform.facebook_marketplace, label: "FB Marketplace" },
+                    { id: GeneratePostRequestPlatform.whatsapp, label: "WhatsApp" },
+                  ].map(platform => (
+                    <label key={platform.id} className="relative flex items-center justify-center p-3 border border-input rounded-md cursor-pointer hover:bg-muted transition-colors has-[:checked]:bg-primary/5 has-[:checked]:border-primary">
+                      <input 
+                        type="radio" 
+                        value={platform.id} 
+                        {...form.register("platform")}
+                        className="absolute opacity-0"
+                      />
+                      <span className="text-sm font-medium">{platform.label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
+
+              {/* Tom e Foco */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Tom de Voz</label>
+                  <select 
+                    {...form.register("tone")}
+                    className="w-full h-10 px-3 rounded-md border border-input bg-transparent text-sm"
+                  >
+                    <option value="professional">Profissional</option>
+                    <option value="friendly">Amigável</option>
+                    <option value="urgent">Urgente (Escassez)</option>
+                    <option value="emotional">Emocional</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Foco Principal</label>
+                  <select 
+                    {...form.register("focus")}
+                    className="w-full h-10 px-3 rounded-md border border-input bg-transparent text-sm"
+                  >
+                    <option value="program">Programa (MCMV)</option>
+                    <option value="price">Preço e Condições</option>
+                    <option value="location">Localização</option>
+                    <option value="amenities">Comodidades</option>
+                    <option value="lifestyle">Estilo de Vida</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Contexto adicional (expandível) */}
+              <div className="border border-dashed border-input rounded-lg overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowContextFields(v => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-muted/50 transition-colors"
+                >
+                  <span className="flex items-center gap-2 text-muted-foreground">
+                    Contexto adicional para a IA
+                    {hasContextFilled && (
+                      <span className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-semibold">preenchido</span>
+                    )}
+                  </span>
+                  {showContextFields ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+
+                {showContextFields && (
+                  <div className="px-4 pb-4 space-y-4 border-t border-dashed border-input pt-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium flex items-center gap-1.5 text-muted-foreground">
+                        <MapPin className="w-3.5 h-3.5 text-primary" /> Sobre a região / bairro
+                      </label>
+                      <textarea
+                        {...form.register("regionContext")}
+                        placeholder="Ex: Próximo ao metrô, Shopping X a 5min, bairro tranquilo com praça..."
+                        className="w-full min-h-[64px] p-3 rounded-md border border-input bg-transparent text-sm resize-none"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium flex items-center gap-1.5 text-muted-foreground">
+                        <Maximize2 className="w-3.5 h-3.5 text-primary" /> Sobre o espaço / tamanho
+                      </label>
+                      <textarea
+                        {...form.register("sizeContext")}
+                        placeholder="Ex: Sala ampla com varanda, quartos com armários embutidos, cozinha planejada..."
+                        className="w-full min-h-[64px] p-3 rounded-md border border-input bg-transparent text-sm resize-none"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium flex items-center gap-1.5 text-muted-foreground">
+                        <BadgeDollarSign className="w-3.5 h-3.5 text-primary" /> Sobre o valor / condições
+                      </label>
+                      <textarea
+                        {...form.register("valueContext")}
+                        placeholder="Ex: Aceita carro como entrada, FGTS, parcela menor que aluguel, subsídio até R$ 55.000..."
+                        className="w-full min-h-[64px] p-3 rounded-md border border-input bg-transparent text-sm resize-none"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Instruções livres */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Foco Principal</label>
-                <select 
-                  {...form.register("focus")}
-                  className="w-full h-10 px-3 rounded-md border border-input bg-transparent text-sm"
-                >
-                  <option value="program">Programa (MCMV)</option>
-                  <option value="price">Preço e Condições</option>
-                  <option value="location">Localização</option>
-                  <option value="amenities">Comodidades</option>
-                  <option value="lifestyle">Estilo de Vida</option>
-                </select>
+                <label className="text-sm font-medium">Instruções adicionais (Opcional)</label>
+                <textarea 
+                  {...form.register("customInstructions")}
+                  placeholder="Ex: Mencione que é o último apartamento disponível neste andar..."
+                  className="w-full min-h-[64px] p-3 rounded-md border border-input bg-transparent text-sm resize-y"
+                />
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Instruções Adicionais (Opcional)</label>
-              <textarea 
-                {...form.register("customInstructions")}
-                placeholder="Ex: Mencione que aceita carro como entrada..."
-                className="w-full min-h-[80px] p-3 rounded-md border border-input bg-transparent text-sm resize-y"
-              />
-            </div>
-
-            <button 
-              type="submit"
-              disabled={generateMutation.isPending}
-              className="w-full h-12 rounded-md font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
-            >
-              {generateMutation.isPending ? (
-                <span className="w-5 h-5 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground animate-spin"></span>
-              ) : (
-                <Wand2 className="w-5 h-5" />
-              )}
-              {generateMutation.isPending ? "Gerando..." : "Gerar Post"}
-            </button>
-          </form>
+              <button 
+                type="submit"
+                disabled={generateMutation.isPending || isUploading}
+                className="w-full h-12 rounded-md font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+              >
+                {generateMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Gerando...
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="w-5 h-5" />
+                    Gerar Post{photos.length > 0 ? ` com ${photos.length} foto${photos.length > 1 ? "s" : ""}` : ""}
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
         </div>
 
         {/* Resultado */}
         <div className="space-y-6">
           {generatedResult ? (
-            <div className="bg-card border border-card-border rounded-xl shadow-sm overflow-hidden flex flex-col h-full">
+            <div className="bg-card border border-card-border rounded-xl shadow-sm overflow-hidden flex flex-col">
               <div className="p-4 border-b border-border bg-muted/30 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
@@ -251,7 +459,7 @@ export default function Generate() {
 
                 {generatedResult.aiNotes && (
                   <div className="mb-6 p-4 bg-secondary/5 border border-secondary/20 rounded-lg flex gap-3">
-                    <AlertCircle className="w-5 h-5 text-secondary shrink-0" />
+                    <AlertCircle className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
                     <div>
                       <p className="text-sm font-semibold text-secondary">Notas da IA</p>
                       <p className="text-sm text-muted-foreground mt-1">{generatedResult.aiNotes}</p>
@@ -287,14 +495,14 @@ export default function Generate() {
               </div>
             </div>
           ) : (
-            <div className="h-full bg-card border border-card-border border-dashed rounded-xl flex items-center justify-center p-12 text-center">
+            <div className="bg-card border border-card-border border-dashed rounded-xl flex items-center justify-center p-12 text-center min-h-[400px]">
               <div>
                 <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center text-muted-foreground mx-auto mb-4">
                   <Wand2 className="w-8 h-8" />
                 </div>
                 <h3 className="text-lg font-medium text-foreground">Pronto para gerar</h3>
-                <p className="text-muted-foreground mt-2 max-w-sm">
-                  Preencha o formulário ao lado e clique em "Gerar Post" para ver a mágica acontecer.
+                <p className="text-muted-foreground mt-2 max-w-sm text-sm">
+                  Preencha o formulário ao lado, adicione fotos e contexto extras para um post ainda mais preciso.
                 </p>
               </div>
             </div>

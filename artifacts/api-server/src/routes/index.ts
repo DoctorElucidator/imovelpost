@@ -6,6 +6,7 @@ import generateRouter from "./generate";
 import analysisRouter from "./analysis";
 import campaignsRouter from "./campaigns";
 import dashboardRouter from "./dashboard";
+import storageRouter from "./storage";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(generateRouter);
 router.use(analysisRouter);
 router.use(campaignsRouter);
 router.use(dashboardRouter);
+router.use(storageRouter);
 
 export default router;
