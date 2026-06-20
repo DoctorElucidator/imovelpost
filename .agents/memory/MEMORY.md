@@ -1,0 +1,1 @@
+- [ImóvelPost project state & roadmap](project-state.md) — current feature set, key files, and prioritized next features for future sessions
