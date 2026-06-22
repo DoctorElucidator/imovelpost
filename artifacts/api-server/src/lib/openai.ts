@@ -1,13 +1,23 @@
 import OpenAI from "openai";
 import { logger } from "./logger";
 
-if (!process.env.OPENAI_API_KEY) {
-  logger.warn("OPENAI_API_KEY not set — AI generation will fail at runtime");
+let _openai: OpenAI | null = null;
+
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error(
+        "OPENAI_API_KEY is not set. Set it in your .env file or environment to use AI features.",
+      );
+    }
+    _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return _openai;
 }
 
-export const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+if (!process.env.OPENAI_API_KEY) {
+  logger.warn("OPENAI_API_KEY not set — AI endpoints will return 503 at runtime");
+}
 
 export type PostPlatform = "facebook" | "facebook_marketplace" | "instagram" | "whatsapp";
 export type PostTone = "professional" | "friendly" | "urgent" | "emotional";
@@ -157,7 +167,7 @@ ${valueContext ? `- Sobre o valor/condições: ${valueContext}` : ""}
 
 O score deve ser um número de 0-100 refletindo a qualidade e potencial de engajamento estimado do post. Hashtags sem o símbolo #.`;
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: "gpt-5-mini",
     messages: [
       { role: "system", content: systemPrompt },
@@ -226,7 +236,7 @@ Retorne EXATAMENTE este JSON:
 
 Inclua 6 a 8 trends diferentes, cobrindo diferentes plataformas. Scores de 70-98. Base em boas práticas reais de marketing imobiliário no Brasil.`;
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: "gpt-5-mini",
     messages: [
       { role: "system", content: systemPrompt },
