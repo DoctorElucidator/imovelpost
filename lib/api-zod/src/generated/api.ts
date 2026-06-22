@@ -271,7 +271,8 @@ export const GeneratePostBody = zod.object({
   "imageUrls": zod.array(zod.string()).optional().describe('URLs of property photos to include in AI analysis'),
   "regionContext": zod.string().optional().describe('Optional: neighborhood highlights, nearby amenities, public transport'),
   "sizeContext": zod.string().optional().describe('Optional: size\/layout highlights the broker wants to emphasize'),
-  "valueContext": zod.string().optional().describe('Optional: financing terms, value deal details, entry conditions')
+  "valueContext": zod.string().optional().describe('Optional: financing terms, value deal details, entry conditions'),
+  "listingDescription": zod.string().optional().describe('Optional: full text description extracted from the listing portal page')
 })
 
 export const GeneratePostResponse = zod.object({
@@ -438,6 +439,7 @@ export const ImportListingResponse = zod.object({
   "bathrooms": zod.number().nullish(),
   "parkingSpots": zod.number().nullish(),
   "photos": zod.array(zod.string()).describe('Public photo URLs extracted from the listing'),
+  "listingDescription": zod.string().nullish().describe('Full text description extracted from the listing page'),
   "source": zod.string().describe('Which portal the data came from (e.g. VivaReal, ZAP, OLX)')
 })
 

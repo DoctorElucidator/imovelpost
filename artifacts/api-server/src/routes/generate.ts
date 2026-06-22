@@ -13,7 +13,7 @@ router.post("/generate", async (req, res): Promise<void> => {
     return;
   }
 
-  const { propertyId, platform, tone, focus, customInstructions, imageUrls, regionContext, sizeContext, valueContext } = parsed.data;
+  const { propertyId, platform, tone, focus, customInstructions, imageUrls, regionContext, sizeContext, valueContext, listingDescription } = parsed.data;
 
   const [property] = await db.select().from(propertiesTable).where(eq(propertiesTable.id, propertyId));
   if (!property) {
@@ -33,6 +33,7 @@ router.post("/generate", async (req, res): Promise<void> => {
         regionContext: regionContext ?? undefined,
         sizeContext: sizeContext ?? undefined,
         valueContext: valueContext ?? undefined,
+        listingDescription: listingDescription ?? undefined,
       }
     );
     res.json({ ...result, platform });

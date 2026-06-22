@@ -23,4 +23,6 @@ export interface GeneratePostRequest {
   sizeContext?: string;
   /** Optional: financing terms, value deal details, entry conditions */
   valueContext?: string;
+  /** Optional: full text description extracted from the listing portal page */
+  listingDescription?: string;
 }

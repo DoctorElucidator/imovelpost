@@ -19,6 +19,7 @@ export interface GenerateOptions {
   regionContext?: string;
   sizeContext?: string;
   valueContext?: string;
+  listingDescription?: string;
 }
 
 function platformLabel(p: PostPlatform): string {
@@ -92,7 +93,7 @@ export async function generateRealEstatePost(
   score: number;
   aiNotes: string;
 }> {
-  const { customInstructions, imageUrls = [], regionContext, sizeContext, valueContext } = options;
+  const { customInstructions, imageUrls = [], regionContext, sizeContext, valueContext, listingDescription } = options;
 
   const priceFormatted = new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -114,7 +115,7 @@ Suas respostas devem:
 Responda APENAS com JSON válido no formato especificado.`;
 
   const hasPhotos = imageUrls.length > 0;
-  const hasExtraContext = regionContext || sizeContext || valueContext;
+  const hasExtraContext = regionContext || sizeContext || valueContext || listingDescription;
 
   const userPrompt = `Crie um post para venda do seguinte imóvel:
 
@@ -139,7 +140,8 @@ ${customInstructions ? `- Instruções do corretor: ${customInstructions}` : ""}
 ${hasPhotos ? `**Fotos do Imóvel:**
 O corretor anexou ${imageUrls.length} foto(s) do imóvel. Use o contexto visual para tornar o post mais específico e convincente — descreva características visíveis como acabamento, espaço, luminosidade, vista ou estado de conservação quando relevante.` : ""}
 
-${hasExtraContext ? `**Contexto Adicional do Corretor:**` : ""}
+${hasExtraContext ? `**Contexto Adicional:**` : ""}
+${listingDescription ? `- Descrição original do anúncio no portal: "${listingDescription}"` : ""}
 ${regionContext ? `- Sobre a região/bairro: ${regionContext}` : ""}
 ${sizeContext ? `- Sobre o espaço/tamanho: ${sizeContext}` : ""}
 ${valueContext ? `- Sobre o valor/condições: ${valueContext}` : ""}

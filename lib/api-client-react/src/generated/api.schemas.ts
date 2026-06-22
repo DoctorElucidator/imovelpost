@@ -297,6 +297,11 @@ export interface ImportedListing {
   parkingSpots?: number | null;
   /** Public photo URLs extracted from the listing */
   photos: string[];
+  /**
+     * Full text description extracted from the listing page
+     * @nullable
+     */
+  listingDescription?: string | null;
   /** Which portal the data came from (e.g. VivaReal, ZAP, OLX) */
   source: string;
 }
@@ -357,6 +362,8 @@ export interface GeneratePostRequest {
   sizeContext?: string;
   /** Optional: financing terms, value deal details, entry conditions */
   valueContext?: string;
+  /** Optional: full text description extracted from the listing portal page */
+  listingDescription?: string;
 }
 
 export interface GeneratedPostResult {

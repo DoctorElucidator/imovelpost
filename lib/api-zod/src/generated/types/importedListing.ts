@@ -29,6 +29,11 @@ export interface ImportedListing {
   parkingSpots?: number | null;
   /** Public photo URLs extracted from the listing */
   photos: string[];
+  /**
+     * Full text description extracted from the listing page
+     * @nullable
+     */
+  listingDescription?: string | null;
   /** Which portal the data came from (e.g. VivaReal, ZAP, OLX) */
   source: string;
 }

@@ -6,6 +6,7 @@ interface ListingData {
   title: string | null;
   price: number | null;
   description: string | null;
+  listingDescription: string | null;
   address: string | null;
   neighborhood: string | null;
   city: string | null;
@@ -187,6 +188,55 @@ function extractEmbeddedJson(html: string): Partial<ListingData> {
   return data;
 }
 
+function extractTextDescription(html: string): string | null {
+  // Remove scripts, styles, nav, header, footer, aside
+  let cleaned = html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<(nav|header|footer|aside|noscript)[^>]*>[\s\S]*?<\/\1>/gi, "");
+
+  // Portal-specific description container selectors (class/id patterns)
+  const portalPatterns = [
+    // VivaReal / ZAP
+    /class="[^"]*description[^"]*"[^>]*>([\s\S]{80,3000}?)<\/(?:p|div|section|article)/i,
+    /id="[^"]*description[^"]*"[^>]*>([\s\S]{80,3000}?)<\/(?:p|div|section|article)/i,
+    // Generic long <p> blocks (often the actual listing description)
+    /<p[^>]*class="[^"]*(?:descri|texto|detail|observ)[^"]*"[^>]*>([\s\S]{80,2000}?)<\/p>/gi,
+    // OLX / Mercado Livre
+    /<div[^>]*class="[^"]*(?:descri|detail|about|caracterist)[^"]*"[^>]*>([\s\S]{80,3000}?)<\/div>/gi,
+  ];
+
+  for (const pattern of portalPatterns) {
+    const m = pattern.exec(cleaned);
+    if (m?.[1]) {
+      const text = m[1]
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&nbsp;/g, " ")
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/\s{2,}/g, " ")
+        .trim();
+      if (text.length > 60) return text.slice(0, 1500);
+    }
+  }
+
+  // Fallback: find the longest <p> block in the page
+  const pTags = cleaned.match(/<p[^>]*>([\s\S]{60,1000}?)<\/p>/gi) ?? [];
+  let longest = "";
+  for (const tag of pTags) {
+    const text = tag
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+    if (text.length > longest.length && !/<[a-z]/i.test(text)) {
+      longest = text;
+    }
+  }
+  return longest.length > 60 ? longest.slice(0, 1500) : null;
+}
+
 function extractImagesFromHtml(html: string, sourceUrl: string): string[] {
   const photos: string[] = [];
   const seen = new Set<string>();
@@ -283,10 +333,13 @@ router.post("/import/listing", async (req, res): Promise<void> => {
       .filter((u) => u.startsWith("http"))
       .slice(0, 20);
 
+    const listingDescription = extractTextDescription(html);
+
     const listing: ListingData = {
       title: fromJsonLd.title ?? ogTitle ?? null,
       price: fromJsonLd.price ?? fromEmbedded.price ?? parsePrice(metaPrice) ?? null,
       description: fromJsonLd.description ?? ogDescription ?? null,
+      listingDescription: listingDescription ?? null,
       address: fromJsonLd.address ?? null,
       neighborhood: fromJsonLd.neighborhood ?? fromEmbedded.neighborhood ?? null,
       city: fromJsonLd.city ?? fromEmbedded.city ?? null,

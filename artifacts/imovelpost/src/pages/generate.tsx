@@ -207,6 +207,8 @@ export default function Generate() {
     toast({ title: `${toAdd.length} foto${toAdd.length > 1 ? "s" : ""} adicionada${toAdd.length > 1 ? "s" : ""}`, description: "Fotos do portal prontas para uso." });
   };
 
+  const [importedDescription, setImportedDescription] = useState<string | null>(null);
+
   const applyImportedContext = (listing: ImportedListing) => {
     if (listing.neighborhood || listing.city) {
       const parts: string[] = [];
@@ -231,6 +233,16 @@ export default function Generate() {
     toast({ title: "Dados aplicados", description: "As informações do anúncio foram preenchidas nos campos de contexto." });
   };
 
+  const applyListingDescription = (listing: ImportedListing) => {
+    const desc = listing.listingDescription ?? listing.description ?? null;
+    if (!desc) {
+      toast({ title: "Sem descrição", description: "Nenhuma descrição foi encontrada neste anúncio.", variant: "destructive" });
+      return;
+    }
+    setImportedDescription(desc);
+    toast({ title: "Descrição carregada", description: "A descrição do anúncio será enviada para a IA ao gerar o post." });
+  };
+
   const onGenerate = (data: FormValues) => {
     const imageUrls = photos.map(p => p.url);
     
@@ -241,6 +253,7 @@ export default function Generate() {
         regionContext: data.regionContext || undefined,
         sizeContext: data.sizeContext || undefined,
         valueContext: data.valueContext || undefined,
+        listingDescription: importedDescription ?? undefined,
       }
     }, {
       onSuccess: (res) => {
@@ -435,24 +448,40 @@ export default function Generate() {
                           })}
                         </div>
 
-                        <div className="flex gap-2 pt-1">
-                          <button
-                            type="button"
-                            onClick={applyImportedPhotos}
-                            disabled={selectedImportPhotos.size === 0 || totalPhotos >= 5}
-                            className="flex-1 h-8 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
-                          >
-                            <ImagePlus className="w-3.5 h-3.5" />
-                            Usar {selectedImportPhotos.size > 0 ? `${selectedImportPhotos.size} ` : ""}foto{selectedImportPhotos.size !== 1 ? "s" : ""} selecionada{selectedImportPhotos.size !== 1 ? "s" : ""}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => applyImportedContext(importedListing)}
-                            className="flex-1 h-8 rounded-md text-xs font-medium border border-input bg-card hover:bg-muted transition-colors flex items-center justify-center gap-1.5"
-                          >
-                            <MapPin className="w-3.5 h-3.5 text-primary" />
-                            Preencher contexto
-                          </button>
+                        <div className="flex flex-col gap-2 pt-1">
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={applyImportedPhotos}
+                              disabled={selectedImportPhotos.size === 0 || totalPhotos >= 5}
+                              className="flex-1 h-8 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                            >
+                              <ImagePlus className="w-3.5 h-3.5" />
+                              Usar {selectedImportPhotos.size > 0 ? `${selectedImportPhotos.size} ` : ""}foto{selectedImportPhotos.size !== 1 ? "s" : ""} selecionada{selectedImportPhotos.size !== 1 ? "s" : ""}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => applyImportedContext(importedListing)}
+                              className="flex-1 h-8 rounded-md text-xs font-medium border border-input bg-card hover:bg-muted transition-colors flex items-center justify-center gap-1.5"
+                            >
+                              <MapPin className="w-3.5 h-3.5 text-primary" />
+                              Preencher contexto
+                            </button>
+                          </div>
+                          {(importedListing.listingDescription || importedListing.description) && (
+                            <button
+                              type="button"
+                              onClick={() => applyListingDescription(importedListing)}
+                              className={`w-full h-8 rounded-md text-xs font-medium border transition-colors flex items-center justify-center gap-1.5 ${
+                                importedDescription
+                                  ? "border-chart-3 bg-chart-3/10 text-chart-3"
+                                  : "border-input bg-card hover:bg-muted"
+                              }`}
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                              {importedDescription ? "Descrição do anuncio aplicada" : "Usar descricao do anuncio para a IA"}
+                            </button>
+                          )}
                         </div>
                       </div>
                     ) : (
