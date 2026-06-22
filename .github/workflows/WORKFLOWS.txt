@@ -1,0 +1,55 @@
+GITHUB ACTIONS WORKFLOWS — ImóvelPost
+======================================
+
+This folder contains two automated workflows that run on GitHub Actions
+whenever code is pushed to the main branch.
+
+
+1. ci.yml — Continuous Integration (typecheck)
+-----------------------------------------------
+Triggered on: every push to main, and on pull requests to main.
+
+What it does:
+  - Installs Node.js 24 and pnpm
+  - Installs all workspace dependencies
+  - Runs `pnpm run typecheck` across all packages (libs + artifacts)
+
+Purpose:
+  Catches TypeScript errors early, before they reach the server or users.
+  Runs on every change so broken code is caught immediately.
+
+Required secrets: none.
+
+
+2. deploy.yml — Deploy Frontend to GitHub Pages
+------------------------------------------------
+Triggered on: every push to main, and manually via the GitHub Actions UI.
+
+What it does:
+  - Installs dependencies and builds the shared TypeScript libraries
+  - Builds the React frontend (artifacts/imovelpost) as a static site
+  - Deploys the built files to GitHub Pages
+
+Purpose:
+  Hosts the frontend (UI only) as a static site on GitHub Pages.
+  The frontend still needs a running API server to work — set the
+  VITE_API_BASE_URL secret in your repository settings to point at
+  your deployed backend (e.g. https://your-server.com/api).
+
+Required GitHub repository settings:
+  - Settings > Pages > Source: set to "GitHub Actions"
+
+Required secrets (Settings > Secrets and variables > Actions):
+  - VITE_API_BASE_URL: the full base URL of your API server, e.g.
+    https://your-api-server.com/api
+    Leave empty if running locally — the app will fall back to /api.
+
+
+NOTES
+-----
+- The API server (artifacts/api-server) is NOT deployed here.
+  It must be run separately on your own server or Replit.
+  See SETUP.md at the project root for local setup instructions.
+
+- Both workflows require the `workflow` scope on any GitHub Personal
+  Access Token used to push to this repository.
