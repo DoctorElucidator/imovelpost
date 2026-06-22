@@ -1,0 +1,106 @@
+SETUP GUIDE — ImóvelPost API Server on Windows
+===============================================
+
+Run these steps once on your Windows server to get the API running
+and wired up for automatic deploys from GitHub.
+
+
+PREREQUISITES
+-------------
+Install these if you don't have them:
+
+1. Node.js 20+ — https://nodejs.org (choose the LTS installer)
+2. pnpm  — open PowerShell and run:
+     npm install -g pnpm
+3. PM2   — open PowerShell and run:
+     npm install -g pm2 pm2-windows-startup
+4. Git   — https://git-scm.com/download/win
+5. PostgreSQL 16 — https://www.postgresql.org/download/windows/
+   During install: set a password for the postgres user, keep port 5432.
+
+
+STEP 1 — Clone the repository
+------------------------------
+Open PowerShell and run:
+
+  cd C:\
+  git clone https://github.com/DoctorElucidator/imovelpost.git
+  cd imovelpost
+
+
+STEP 2 — Create the .env file
+------------------------------
+In the imovelpost folder, create a file named .env with this content
+(fill in your real values):
+
+  DATABASE_URL=postgresql://postgres:YOUR_PG_PASSWORD@localhost:5432/imovelpost
+  OPENAI_API_KEY=sk-...
+  PORT=8080
+
+
+STEP 3 — Install dependencies and apply database schema
+--------------------------------------------------------
+  pnpm install --frozen-lockfile
+  pnpm --filter @workspace/db run push
+
+
+STEP 4 — Build the API server
+------------------------------
+  pnpm --filter @workspace/api-server run build
+
+
+STEP 5 — Start the API server with PM2
+---------------------------------------
+  pm2 start ecosystem.config.cjs
+  pm2 save
+
+  Check it is running:
+  pm2 list
+  pm2 logs imovelpost-api
+
+
+STEP 6 — Auto-start PM2 on Windows reboot
+------------------------------------------
+  pm2-startup install
+  pm2 save
+
+  This installs PM2 as a Windows service that starts automatically.
+
+
+STEP 7 — Open firewall port (optional)
+---------------------------------------
+If you want the API accessible from outside the server, open port 8080
+in Windows Firewall:
+
+  New-NetFirewallRule -DisplayName "ImóvelPost API" -Direction Inbound -Protocol TCP -LocalPort 8080 -Action Allow
+
+
+STEP 8 — Wire up GitHub Actions for automatic deploys
+------------------------------------------------------
+In your GitHub repository, go to:
+  Settings > Secrets and variables > Actions > New repository secret
+
+Add these four secrets:
+
+  VPS_HOST      — your server's IP address or domain name
+  VPS_USER      — Windows username (e.g. Administrator)
+  VPS_PASSWORD  — Windows user password
+  VPS_PORT      — SSH port (default: 22)
+
+You also need OpenSSH Server running on Windows:
+  Settings > Apps > Optional features > Add a feature > OpenSSH Server
+  Then in PowerShell (as Administrator):
+    Start-Service sshd
+    Set-Service -Name sshd -StartupType Automatic
+
+After that, every push to the main branch on GitHub will automatically
+pull the latest code, rebuild, and restart the API server.
+
+
+VERIFY
+------
+Once running, test the API from your browser or another machine:
+
+  http://YOUR_SERVER_IP:8080/api/healthz
+
+Should return: {"status":"ok"}

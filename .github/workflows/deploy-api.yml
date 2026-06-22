@@ -1,0 +1,40 @@
+name: Deploy API to VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.VPS_PORT }}
+          script: |
+            cd /c/imovelpost
+
+            echo "Pulling latest code..."
+            git pull origin main
+
+            echo "Installing dependencies..."
+            pnpm install --frozen-lockfile
+
+            echo "Building API server..."
+            pnpm --filter @workspace/api-server run build
+
+            echo "Restarting API server with PM2..."
+            pm2 restart imovelpost-api || pm2 start artifacts/api-server/dist/index.mjs --name imovelpost-api --node-args="--enable-source-maps"
+
+            echo "Saving PM2 process list..."
+            pm2 save
+
+            echo "Deploy complete."
